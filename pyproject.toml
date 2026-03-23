@@ -1,0 +1,53 @@
+[project]
+name = "aifmt"
+version = "0.1.0a1"
+description = "Make visual text content just work. An MCP server that fixes, validates, and generates diagrams, tables, and box-drawing art for AI coding assistants."
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.10"
+authors = [
+    { name = "Eric Hansen" },
+]
+keywords = ["mcp", "diagrams", "ascii-art", "copilot", "ai", "alignment", "visual-width"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: Text Processing",
+]
+dependencies = [
+    "mcp>=1.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+    "ruff>=0.4.0",
+]
+
+[project.scripts]
+aifmt = "aifmt.server:main"
+
+[project.urls]
+Homepage = "https://github.com/ericchansen/aifmt"
+Repository = "https://github.com/ericchansen/aifmt"
+Issues = "https://github.com/ericchansen/aifmt/issues"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/aifmt"]
+
+[tool.ruff]
+target-version = "py310"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "N", "UP"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

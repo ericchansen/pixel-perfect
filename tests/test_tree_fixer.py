@@ -310,6 +310,164 @@ class TestMsxWithContinuation:
         assert "└── skills/account" not in fixed
 
 
+class TestBoxExclusion:
+    """Box-drawing diagrams must NOT be processed by the tree fixer.
+
+    Box borders (┌, │, └, ─) overlap with tree-drawing characters (├, └, │).
+    The tree fixer must detect rectangular box enclosures and skip them.
+    """
+
+    SINGLE_BOX = (
+        "┌──────────────────────────────────────────────────────────┐\n"
+        "│                    DATA PIPELINE                         │\n"
+        "│                                                          │\n"
+        "│  S3/GCS Docs ──▶ Fabric OneLake ──▶ Azure Blob/ADLS    │\n"
+        "│                     (shortcut)          │                │\n"
+        "│                                         ▼                │\n"
+        "│                                  AI Search Indexer        │\n"
+        "└──────────────────────────────────────────────────────────┘"
+    )
+
+    STACKED_BOXES = (
+        "┌──────────────────────────────────────────────────────────┐\n"
+        "│                    DATA PIPELINE                         │\n"
+        "│                                                          │\n"
+        "│  S3/GCS Docs ──▶ Fabric OneLake ──▶ Azure Blob/ADLS    │\n"
+        "└──────────────────────────────────────────────────────────┘\n"
+        "\n"
+        "┌──────────────────────────────────────────────────────────┐\n"
+        "│                    QUERY PIPELINE                         │\n"
+        "│                                                          │\n"
+        "│  User Query ──▶ Orchestrator ──▶ Azure AI Search         │\n"
+        "└──────────────────────────────────────────────────────────┘"
+    )
+
+    NESTED_BOXES = (
+        "┌──────────────────────────────────────────────────────────┐\n"
+        "│                    DATA PIPELINE                         │\n"
+        "│                                                          │\n"
+        "│                                    ┌─────────┐           │\n"
+        "│                                    │ Chunking │           │\n"
+        "│                                    │ Enrichment│          │\n"
+        "│                                    └─────────┘           │\n"
+        "│                                                          │\n"
+        "└──────────────────────────────────────────────────────────┘"
+    )
+
+    def test_single_box_not_modified(self):
+        """A single box diagram should pass through unchanged."""
+        fixed, changes = fix_trees(self.SINGLE_BOX)
+        assert len(changes) == 0, f"Tree fixer should not touch box: {changes}"
+        assert fixed == self.SINGLE_BOX
+
+    def test_stacked_boxes_not_modified(self):
+        """Two stacked box diagrams should pass through unchanged."""
+        fixed, changes = fix_trees(self.STACKED_BOXES)
+        assert len(changes) == 0, f"Tree fixer should not touch stacked boxes: {changes}"
+        assert fixed == self.STACKED_BOXES
+
+    def test_nested_boxes_not_modified(self):
+        """A box containing a nested box should pass through unchanged."""
+        fixed, changes = fix_trees(self.NESTED_BOXES)
+        assert len(changes) == 0, f"Tree fixer should not touch nested boxes: {changes}"
+        assert fixed == self.NESTED_BOXES
+
+    def test_issue_repro_full(self):
+        """Full reproduction case from the issue — two large boxes with nested boxes."""
+        content = (
+            "┌──────────────────────────────────────────────────────────┐\n"
+            "│                    DATA PIPELINE                         │\n"
+            "│                                                          │\n"
+            "│  S3/GCS Docs ──▶ Fabric OneLake ──▶ Azure Blob/ADLS    │\n"
+            "│                     (shortcut)          │                │\n"
+            "│                                         ▼                │\n"
+            "│                                  AI Search Indexer        │\n"
+            "│                                    ┌─────────┐           │\n"
+            "│                                    │ Chunking │           │\n"
+            "│                                    │ Enrichment│          │\n"
+            "│                                    │ Embedding │          │\n"
+            "│                                    └─────────┘           │\n"
+            "│                                         │                │\n"
+            "│                                         ▼                │\n"
+            "│                                  Search Index            │\n"
+            "│                              (vectors + text + metadata) │\n"
+            "└──────────────────────────────────────────────────────────┘\n"
+            "\n"
+            "┌──────────────────────────────────────────────────────────┐\n"
+            "│                    QUERY PIPELINE                         │\n"
+            "│                                                          │\n"
+            "│  User Query ──▶ Orchestrator ──▶ Azure AI Search         │\n"
+            "│                 (Semantic Kernel,   │                     │\n"
+            "│                  Agent Framework)   ▼                     │\n"
+            "│                              Hybrid Search               │\n"
+            "│                        (keyword + vector + semantic rank) │\n"
+            "│                                    │                     │\n"
+            "│                                    ▼                     │\n"
+            "│                              Top-K Results               │\n"
+            "│                                    │                     │\n"
+            "│                                    ▼                     │\n"
+            "│                              LLM (GPT-4o)                │\n"
+            "│                              ──▶ Answer + Citations      │\n"
+            "└──────────────────────────────────────────────────────────┘"
+        )
+        fixed, changes = fix_trees(content)
+        assert len(changes) == 0, f"Tree fixer destroyed box diagram: {changes}"
+        assert fixed == content
+
+    def test_rounded_box_not_modified(self):
+        """Rounded-corner boxes (╭╮╰╯) should also be excluded."""
+        box = (
+            "╭──────────────────╮\n"
+            "│ 📦 Packages: 42  │\n"
+            "│ ✅ Tests: 100%   │\n"
+            "╰──────────────────╯"
+        )
+        fixed, changes = fix_trees(box)
+        assert len(changes) == 0
+        assert fixed == box
+
+    def test_ascii_box_not_modified(self):
+        """ASCII boxes (+---+ / |...|) should also be excluded."""
+        box = (
+            "+----------+\n"
+            "| hello    |\n"
+            "| world    |\n"
+            "+----------+"
+        )
+        fixed, changes = fix_trees(box)
+        assert len(changes) == 0
+        assert fixed == box
+
+    def test_box_then_tree_both_correct(self):
+        """A box followed by a tree — box is untouched, tree is fixed."""
+        content = (
+            "┌────────────────┐\n"
+            "│ Architecture   │\n"
+            "└────────────────┘\n"
+            "\n"
+            "Root\n"
+            "  ├── Child A\n"
+            "  └── Child B"
+        )
+        fixed, changes = fix_trees(content)
+        # The box part should be preserved exactly
+        assert "┌────────────────┐" in fixed
+        assert "│ Architecture   │" in fixed
+        assert "└────────────────┘" in fixed
+
+    def test_indented_box_not_modified(self):
+        """A box with leading indentation should still be excluded."""
+        box = (
+            "    ┌─────────┐\n"
+            "    │ Chunking │\n"
+            "    │ Enrichment│\n"
+            "    └─────────┘"
+        )
+        fixed, changes = fix_trees(box)
+        assert len(changes) == 0
+        assert fixed == box
+
+
 class TestTargetAwareness:
     """Tree fixer respects target parameter."""
 

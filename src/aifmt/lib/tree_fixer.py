@@ -30,6 +30,13 @@ _ALL_TREE = (
     | _HORIZ_CHARS | frozenset("+")
 )
 
+# Box-drawing top-left / bottom-left and top-right / bottom-right corners
+_BOX_TL = frozenset("┌╭╔")
+_BOX_TR = frozenset("┐╮╗")
+_BOX_BL = frozenset("└╰╚")
+_BOX_BR = frozenset("┘╯╝")
+_BOX_VERT = frozenset("│┃║|")
+
 # Characters that form the tree-drawing prefix before content
 _TREE_PREFIX = frozenset(" \t│|├└┌┐┘┤┬┴┼╭╮╯╰─—–-+")
 
@@ -103,19 +110,114 @@ def _has_branch(lines: list[str], start: int, end: int) -> bool:
     return False
 
 
+def _find_box_lines(lines: list[str]) -> set[int]:
+    """Detect lines that belong to box-drawing diagrams (rectangular borders).
+
+    A box region is: a top border (``┌...┐``), zero or more content lines
+    with vertical borders on both sides (``│...│``), and a bottom border
+    (``└...┘``).  Lines inside these regions must be excluded from tree
+    parsing so the tree fixer doesn't destroy them.
+
+    Also handles ASCII boxes (``+---+`` / ``|...|``) and stacked/nested
+    boxes.
+    """
+    box_lines: set[int] = set()
+    n = len(lines)
+
+    for i in range(n):
+        stripped = lines[i].strip()
+        if not stripped:
+            continue
+
+        # Look for a top-border line: starts with TL corner, ends with TR corner,
+        # and the middle is mostly horizontal fill.
+        first, last = stripped[0], stripped[-1]
+        is_tl_tr = first in _BOX_TL and last in _BOX_TR
+        is_ascii_top = (first == "+" and last == "+"
+                        and len(stripped) >= 3
+                        and all(c in "-+= " for c in stripped[1:-1]))
+
+        if not (is_tl_tr or is_ascii_top):
+            continue
+
+        # Validate the middle of the top border is horizontal fill
+        if is_tl_tr:
+            middle = stripped[1:-1]
+            h_chars = sum(1 for c in middle if c in _HORIZ_CHARS or c == "━" or c == "═")
+            if h_chars < len(middle) * 0.5:
+                continue
+
+        indent = len(lines[i]) - len(lines[i].lstrip())
+
+        # Scan forward for matching bottom border
+        for j in range(i + 1, n):
+            s2 = lines[j].strip()
+            if not s2:
+                continue
+
+            j_indent = len(lines[j]) - len(lines[j].lstrip())
+            if j_indent != indent:
+                # Different indent — can't be part of the same box, but might
+                # be a nested box (deeper indent) so keep scanning.
+                # Stop only if we hit a line with NO box-drawing chars at all.
+                if not any(c in s2 for c in _BOX_VERT | _BOX_BL | _BOX_BR | _BOX_TL | _BOX_TR):
+                    break
+                continue
+
+            f2, l2 = s2[0], s2[-1]
+            is_bl_br = f2 in _BOX_BL and l2 in _BOX_BR
+            is_ascii_bot = (f2 == "+" and l2 == "+"
+                            and len(s2) >= 3
+                            and all(c in "-+= " for c in s2[1:-1]))
+
+            if is_bl_br or is_ascii_bot:
+                # Verify there are content lines with vertical borders between
+                has_content = False
+                for k in range(i + 1, j):
+                    ks = lines[k].strip()
+                    if not ks:
+                        continue
+                    if ks[0] in _BOX_VERT and ks[-1] in _BOX_VERT:
+                        has_content = True
+                        break
+
+                if has_content:
+                    # Mark every line from top border to bottom border
+                    for idx in range(i, j + 1):
+                        box_lines.add(idx)
+                    break  # found the matching bottom — stop scanning
+
+            # If we hit another top-border at the same indent, this might be
+            # stacked boxes — stop looking for a bottom for the current top.
+            if (f2 in _BOX_TL or (f2 == "+" and l2 == "+")):
+                if j_indent == indent:
+                    break
+
+    return box_lines
+
+
 def _find_tree_regions(lines: list[str]) -> list[tuple[int, int]]:
-    """Find contiguous regions that look like tree diagrams."""
+    """Find contiguous regions that look like tree diagrams.
+
+    Box-drawing regions (rectangular borders) are detected first and
+    excluded so the tree fixer doesn't destroy them.
+    """
+    box_excluded = _find_box_lines(lines)
     regions: list[tuple[int, int]] = []
     i = 0
     n = len(lines)
 
     while i < n:
+        if i in box_excluded:
+            i += 1
+            continue
+
         if _is_tree_line(lines[i]):
             start = i
             end = i
 
             # Look back: plain-text root line immediately before tree chars
-            if start > 0:
+            if start > 0 and start - 1 not in box_excluded:
                 prev = lines[start - 1].strip()
                 if (prev
                         and not prev.startswith("#")
@@ -124,11 +226,15 @@ def _find_tree_regions(lines: list[str]) -> list[tuple[int, int]]:
 
             # Extend forward
             while end + 1 < n:
+                if end + 1 in box_excluded:
+                    break
                 nxt = lines[end + 1]
                 if _is_tree_line(nxt):
                     end += 1
                 elif not nxt.strip():
-                    if end + 2 < n and _is_tree_line(lines[end + 2]):
+                    if (end + 2 < n
+                            and end + 2 not in box_excluded
+                            and _is_tree_line(lines[end + 2])):
                         end += 2
                     else:
                         break

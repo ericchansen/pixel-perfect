@@ -353,3 +353,92 @@ class TestMsxMcpTreeDiagram:
             "Dataverse line has a branch connector now — test needs updating"
         )
         # It SHOULD have a branch connector but doesn't — that's a bug in the source
+
+
+class TestBoxDiagramNotDestroyedByModeAll:
+    """Regression: fix(mode='all') must not destroy box diagrams.
+
+    The tree fixer was matching box-drawing characters (┌│└─) as tree
+    nodes and destructively reformatting box diagrams into flat tree lists.
+    Box regions are now detected and excluded from tree processing.
+    """
+
+    DATA_PIPELINE_BOX = (
+        "┌──────────────────────────────────────────────────────────┐\n"
+        "│                    DATA PIPELINE                         │\n"
+        "│                                                          │\n"
+        "│  S3/GCS Docs ──▶ Fabric OneLake ──▶ Azure Blob/ADLS    │\n"
+        "│                     (shortcut)          │                │\n"
+        "│                                         ▼                │\n"
+        "│                                  AI Search Indexer        │\n"
+        "│                                    ┌─────────┐           │\n"
+        "│                                    │ Chunking │           │\n"
+        "│                                    │ Enrichment│          │\n"
+        "│                                    │ Embedding │          │\n"
+        "│                                    └─────────┘           │\n"
+        "│                                         │                │\n"
+        "│                                         ▼                │\n"
+        "│                                  Search Index            │\n"
+        "│                              (vectors + text + metadata) │\n"
+        "└──────────────────────────────────────────────────────────┘\n"
+        "\n"
+        "┌──────────────────────────────────────────────────────────┐\n"
+        "│                    QUERY PIPELINE                         │\n"
+        "│                                                          │\n"
+        "│  User Query ──▶ Orchestrator ──▶ Azure AI Search         │\n"
+        "│                 (Semantic Kernel,   │                     │\n"
+        "│                  Agent Framework)   ▼                     │\n"
+        "│                              Hybrid Search               │\n"
+        "│                        (keyword + vector + semantic rank) │\n"
+        "│                                    │                     │\n"
+        "│                                    ▼                     │\n"
+        "│                              Top-K Results               │\n"
+        "│                                    │                     │\n"
+        "│                                    ▼                     │\n"
+        "│                              LLM (GPT-4o)                │\n"
+        "│                              ──▶ Answer + Citations      │\n"
+        "└──────────────────────────────────────────────────────────┘"
+    )
+
+    def test_tree_fixer_alone_preserves_boxes(self):
+        """Tree fixer alone should not touch box diagrams."""
+        fixed, changes = fix_trees(self.DATA_PIPELINE_BOX, target="github")
+        assert len(changes) == 0, f"Tree fixer modified box diagram: {changes}"
+        assert fixed == self.DATA_PIPELINE_BOX
+
+    def test_box_borders_intact_after_all_fixers(self):
+        """After running ALL fixers (box, table, bar, tree), the box structure
+        must still have ┌...┐ top borders and └...┘ bottom borders.
+
+        This is the exact scenario from the issue: fix(mode='all').
+        """
+        from aifmt.lib.bar_fixer import fix_bars
+        from aifmt.lib.box_fixer import fix_boxes
+        from aifmt.lib.table_fixer import fix_tables
+
+        result = self.DATA_PIPELINE_BOX
+
+        result, _ = fix_tables(result, target="github")
+        result, _ = fix_bars(result)
+        result, _ = fix_boxes(result, target="github")
+        result, _ = fix_trees(result, target="github")
+
+        # Box structure must be preserved — ├── and └── tree connectors
+        # must NOT appear as line starters
+        lines = result.split("\n")
+        for line in lines:
+            stripped = line.strip()
+            if not stripped:
+                continue
+            assert not stripped.startswith("├── "), (
+                f"Box was destroyed — tree connector injected: {stripped}"
+            )
+            # └── as tree connector (with space+label) vs └────┘ as box border
+            if stripped.startswith("└── ") and "┘" not in stripped:
+                raise AssertionError(
+                    f"Box was destroyed — tree connector injected: {stripped}"
+                )
+
+        # Top/bottom borders must be intact
+        assert any("┌──────" in line for line in lines), "Top border missing"
+        assert any("└──────" in line for line in lines), "Bottom border missing"

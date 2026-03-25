@@ -24,7 +24,7 @@ class TestReadmeHeroBoxes:
     The fixer should make them actually correct.
     """
 
-    def test_readme_correct_box_is_actually_broken(self):
+    def test_readme_correct_box_is_actually_broken(self, show_visual):
         """The box labeled 'correct' in the README is NOT correct on GitHub.
 
         The fixer with target="github" MUST detect and fix this.
@@ -36,7 +36,7 @@ class TestReadmeHeroBoxes:
             "╰──────────────────╯"
         )
         fixed, changes = fix_boxes(broken_input, target="github")
-
+        show_visual("README 'correct' box (github target)", broken_input, fixed, changes)
         # The fixer MUST detect something is wrong
         assert len(changes) > 0, (
             "Fixer says nothing to fix, but this box renders broken on GitHub. "
@@ -54,7 +54,7 @@ class TestReadmeHeroBoxes:
         # )
         # assert fixed == expected
 
-    def test_readme_llm_output_box(self):
+    def test_readme_llm_output_box(self, show_visual):
         """The box labeled 'LLM output' in the README — also broken."""
         broken_input = (
             "╭──────────────────╮\n"
@@ -63,6 +63,7 @@ class TestReadmeHeroBoxes:
             "╰──────────────────╯"
         )
         fixed, changes = fix_boxes(broken_input, target="github")
+        show_visual("README 'LLM output' box (github target)", broken_input, fixed, changes)
 
         assert len(changes) > 0, (
             "Fixer says nothing to fix, but this box renders broken."
@@ -76,7 +77,7 @@ class TestReadmeHeroBoxes:
 class TestReadmeTableExample:
     """The 'After fix' table example in the README renders broken on GitHub."""
 
-    def test_readme_after_table_is_broken(self):
+    def test_readme_after_table_is_broken(self, show_visual):
         """The table we show as the 'fixed' output is actually misaligned on GitHub.
 
         Emoji in the Status column (✅ ❌ 📦) cause the pipe characters
@@ -91,6 +92,7 @@ class TestReadmeTableExample:
         )
 
         fixed, changes = fix_tables(broken_after, target="github")
+        show_visual("README 'After fix' table (github target)", broken_after, fixed, changes)
 
         # The fixer should detect the emoji rows need different padding
         assert len(changes) > 0, (
@@ -112,7 +114,7 @@ class TestReadmeTableExample:
 class TestReadmeBoxExample:
     """The 'Before' and 'After' box examples in the README — both broken."""
 
-    def test_readme_before_box(self):
+    def test_readme_before_box(self, show_visual):
         """The 'before' box in the fix example is broken as shown."""
         broken_input = (
             "┌──────────────────┐\n"
@@ -122,9 +124,10 @@ class TestReadmeBoxExample:
             "└──────────────────┘"
         )
         fixed, changes = fix_boxes(broken_input, target="github")
+        show_visual("README 'Before' box (github target)", broken_input, fixed, changes)
         assert len(changes) > 0, "Fixer missed the misalignment"
 
-    def test_readme_after_box_is_also_broken(self):
+    def test_readme_after_box_is_also_broken(self, show_visual):
         """The 'after' box we claim is fixed — is ALSO broken on GitHub."""
         broken_after = (
             "┌──────────────────┐\n"
@@ -134,6 +137,7 @@ class TestReadmeBoxExample:
             "└──────────────────┘"
         )
         fixed, changes = fix_boxes(broken_after, target="github")
+        show_visual("README 'After' box (github target)", broken_after, fixed, changes)
 
         assert len(changes) > 0, (
             "Fixer says this is fine, but it renders broken on GitHub. "
@@ -152,7 +156,7 @@ class TestQ2mmArchitectureBox:
     Renders broken in MkDocs Material theme.
     """
 
-    def test_q2mm_canonical_unit_space_box(self):
+    def test_q2mm_canonical_unit_space_box(self, show_visual):
         """The big box diagram showing canonical unit space data flow."""
         broken_input = (
             "┌──────────────────────────────────────────────────────────────┐\n"
@@ -165,6 +169,7 @@ class TestQ2mmArchitectureBox:
             "└──────────────────────────────────────────────────────────────┘"
         )
         fixed, changes = fix_boxes(broken_input, target="github")
+        show_visual("q2mm architecture box (github target)", broken_input, fixed, changes)
 
         # The right border is ragged — some lines have the │ in different columns
         assert len(changes) > 0, (
@@ -400,13 +405,14 @@ class TestBoxDiagramNotDestroyedByModeAll:
         "└──────────────────────────────────────────────────────────┘"
     )
 
-    def test_tree_fixer_alone_preserves_boxes(self):
+    def test_tree_fixer_alone_preserves_boxes(self, show_visual):
         """Tree fixer alone should not touch box diagrams."""
         fixed, changes = fix_trees(self.DATA_PIPELINE_BOX, target="github")
+        show_visual("Tree fixer alone on DATA_PIPELINE_BOX", self.DATA_PIPELINE_BOX, fixed, changes)
         assert len(changes) == 0, f"Tree fixer modified box diagram: {changes}"
         assert fixed == self.DATA_PIPELINE_BOX
 
-    def test_box_borders_intact_after_all_fixers(self):
+    def test_box_borders_intact_after_all_fixers(self, show_visual):
         """After running ALL fixers (box, table, bar, tree), the box structure
         must still have ┌...┐ top borders and └...┘ bottom borders.
 
@@ -423,6 +429,7 @@ class TestBoxDiagramNotDestroyedByModeAll:
         result, _ = fix_boxes(result, target="github")
         result, _ = fix_trees(result, target="github")
 
+        show_visual("All fixers pipeline on DATA_PIPELINE_BOX", self.DATA_PIPELINE_BOX, result)
         # Box structure must be preserved — ├── and └── tree connectors
         # must NOT appear as line starters
         lines = result.split("\n")

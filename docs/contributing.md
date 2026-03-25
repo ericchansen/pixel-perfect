@@ -16,9 +16,12 @@ pip install -e ".[dev]"
 ## Running Tests
 
 ```bash
-pytest        # full suite (149+ tests)
-pytest -v     # verbose
-pytest tests/test_tree_fixer.py  # single file
+pytest                                 # full suite (159+ tests)
+pytest -v                              # verbose
+pytest --visual                        # show before/after fixer output for human verification
+pytest --visual tests/test_tree_fixer.py  # visual output for one file
+pytest --visual -k "BoxExclusion"      # visual output for specific tests
+pytest tests/test_tree_fixer.py        # single file
 ```
 
 ## Linting

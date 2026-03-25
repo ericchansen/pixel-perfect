@@ -354,25 +354,28 @@ class TestBoxExclusion:
         "└──────────────────────────────────────────────────────────┘"
     )
 
-    def test_single_box_not_modified(self):
+    def test_single_box_not_modified(self, show_visual):
         """A single box diagram should pass through unchanged."""
         fixed, changes = fix_trees(self.SINGLE_BOX)
+        show_visual("Single box through tree fixer", self.SINGLE_BOX, fixed, changes)
         assert len(changes) == 0, f"Tree fixer should not touch box: {changes}"
         assert fixed == self.SINGLE_BOX
 
-    def test_stacked_boxes_not_modified(self):
+    def test_stacked_boxes_not_modified(self, show_visual):
         """Two stacked box diagrams should pass through unchanged."""
         fixed, changes = fix_trees(self.STACKED_BOXES)
+        show_visual("Stacked boxes through tree fixer", self.STACKED_BOXES, fixed, changes)
         assert len(changes) == 0, f"Tree fixer should not touch stacked boxes: {changes}"
         assert fixed == self.STACKED_BOXES
 
-    def test_nested_boxes_not_modified(self):
+    def test_nested_boxes_not_modified(self, show_visual):
         """A box containing a nested box should pass through unchanged."""
         fixed, changes = fix_trees(self.NESTED_BOXES)
+        show_visual("Nested boxes through tree fixer", self.NESTED_BOXES, fixed, changes)
         assert len(changes) == 0, f"Tree fixer should not touch nested boxes: {changes}"
         assert fixed == self.NESTED_BOXES
 
-    def test_issue_repro_full(self):
+    def test_issue_repro_full(self, show_visual):
         """Full reproduction case from the issue — two large boxes with nested boxes."""
         content = (
             "┌──────────────────────────────────────────────────────────┐\n"
@@ -411,10 +414,11 @@ class TestBoxExclusion:
             "└──────────────────────────────────────────────────────────┘"
         )
         fixed, changes = fix_trees(content)
+        show_visual("Issue repro: two large boxes with nested boxes", content, fixed, changes)
         assert len(changes) == 0, f"Tree fixer destroyed box diagram: {changes}"
         assert fixed == content
 
-    def test_rounded_box_not_modified(self):
+    def test_rounded_box_not_modified(self, show_visual):
         """Rounded-corner boxes (╭╮╰╯) should also be excluded."""
         box = (
             "╭──────────────────╮\n"
@@ -423,10 +427,11 @@ class TestBoxExclusion:
             "╰──────────────────╯"
         )
         fixed, changes = fix_trees(box)
+        show_visual("Rounded box through tree fixer", box, fixed, changes)
         assert len(changes) == 0
         assert fixed == box
 
-    def test_ascii_box_not_modified(self):
+    def test_ascii_box_not_modified(self, show_visual):
         """ASCII boxes (+---+ / |...|) should also be excluded."""
         box = (
             "+----------+\n"
@@ -435,10 +440,11 @@ class TestBoxExclusion:
             "+----------+"
         )
         fixed, changes = fix_trees(box)
+        show_visual("ASCII box through tree fixer", box, fixed, changes)
         assert len(changes) == 0
         assert fixed == box
 
-    def test_box_then_tree_both_correct(self):
+    def test_box_then_tree_both_correct(self, show_visual):
         """A box followed by a tree — box is untouched, tree is fixed."""
         content = (
             "┌────────────────┐\n"
@@ -450,12 +456,13 @@ class TestBoxExclusion:
             "  └── Child B"
         )
         fixed, changes = fix_trees(content)
+        show_visual("Box + tree mixed content", content, fixed, changes)
         # The box part should be preserved exactly
         assert "┌────────────────┐" in fixed
         assert "│ Architecture   │" in fixed
         assert "└────────────────┘" in fixed
 
-    def test_indented_box_not_modified(self):
+    def test_indented_box_not_modified(self, show_visual):
         """A box with leading indentation should still be excluded."""
         box = (
             "    ┌─────────┐\n"
@@ -464,6 +471,7 @@ class TestBoxExclusion:
             "    └─────────┘"
         )
         fixed, changes = fix_trees(box)
+        show_visual("Indented box through tree fixer", box, fixed, changes)
         assert len(changes) == 0
         assert fixed == box
 

@@ -2,7 +2,11 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
+
 import pytest
+
+ShowVisual = Callable[[str, str, str, list[str] | None], None]
 
 
 def pytest_addoption(parser: pytest.Parser) -> None:
@@ -16,7 +20,7 @@ def pytest_addoption(parser: pytest.Parser) -> None:
 
 
 @pytest.fixture
-def show_visual(request: pytest.FixtureRequest, capsys: pytest.CaptureFixture[str]):
+def show_visual(request: pytest.FixtureRequest, capsys: pytest.CaptureFixture[str]) -> ShowVisual:
     """Fixture that conditionally prints before/after fixer output.
 
     Activated by ``pytest --visual``. Uses ``capsys.disabled()`` so output

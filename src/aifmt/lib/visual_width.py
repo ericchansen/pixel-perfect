@@ -31,14 +31,15 @@ from dataclasses import dataclass
 _ANSI_RE = re.compile(r"\033\[[0-9;]*[A-Za-z]")
 
 # Emoji variation selectors and ZWJ
-_VS16 = "\uFE0F"  # emoji presentation
-_VS15 = "\uFE0E"  # text presentation
-_ZWJ = "\u200D"  # zero-width joiner
+_VS16 = "\ufe0f"  # emoji presentation
+_VS15 = "\ufe0e"  # text presentation
+_ZWJ = "\u200d"  # zero-width joiner
 
 
 # ---------------------------------------------------------------------------
 # Rendering profiles
 # ---------------------------------------------------------------------------
+
 
 @dataclass(frozen=True)
 class RenderProfile:

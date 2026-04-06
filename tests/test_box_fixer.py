@@ -1,126 +1,163 @@
 """Tests for box_fixer module."""
 
+import pytest
+
 from aifmt.lib.box_fixer import fix_boxes
-from aifmt.lib.visual_width import visual_width
 
 
 class TestSimpleAsciiBox:
     """Test fixing simple ASCII boxes with +, -, | characters."""
 
-    def test_misaligned_right_border(self):
-        broken = (
-            "+-------------------+\n"
-            "| User Request       |\n"
-            "+-------------------+\n"
-        )
-        fixed, changes = fix_boxes(broken)
-        assert len(changes) > 0
-        # All lines should have the same visual width
-        lines = [ln for ln in fixed.split("\n") if ln.strip()]
-        widths = [visual_width(ln.strip()) for ln in lines]
-        assert len(set(widths)) == 1, f"Widths not uniform: {widths}"
+    correct = """\
++--------------+
+| User Request |
++--------------+
+"""
 
-    def test_right_border_too_close(self):
-        broken = (
-            "+-------------------+\n"
-            "| Parse & Validate |  \n"
-            "+-------------------+\n"
-        )
-        fixed, changes = fix_boxes(broken)
-        lines = [ln for ln in fixed.split("\n") if ln.strip()]
-        widths = [visual_width(ln.strip()) for ln in lines]
-        assert len(set(widths)) == 1
+    def test_right_border_too_far(self) -> None:
+        broken = """\
++--------------+
+| User Request  |
++--------------+
+"""
+        fixed, _changes = fix_boxes(broken)
+        assert fixed == self.correct
 
-    def test_already_aligned(self):
-        correct = (
-            "+-------------------+\n"
-            "| User Request      |\n"
-            "+-------------------+\n"
-        )
-        fixed, changes = fix_boxes(correct)
-        # Should detect the box but make no changes (or minimal)
-        lines_orig = [ln for ln in correct.split("\n") if ln.strip()]
-        lines_fixed = [ln for ln in fixed.split("\n") if ln.strip()]
-        for orig, fix in zip(lines_orig, lines_fixed):
-            assert visual_width(orig.strip()) == visual_width(fix.strip())
+    def test_right_border_too_close(self) -> None:
+        broken = """\
++---------------+
+| User Request |
++---------------+
+"""
+        fixed, _changes = fix_boxes(broken)
+        assert fixed == self.correct
+
+    def test_already_aligned(self) -> None:
+        fixed, _changes = fix_boxes(self.correct)
+        assert fixed == self.correct
 
 
 class TestUnicodeBox:
     """Test fixing Unicode box-drawing character boxes."""
 
-    def test_unicode_misaligned(self):
-        broken = (
-            "┌──────────┐\n"
-            "│ Hello     │\n"
-            "│ World    │\n"
-            "└──────────┘\n"
-        )
-        fixed, changes = fix_boxes(broken)
-        lines = [ln for ln in fixed.split("\n") if ln.strip()]
-        widths = [visual_width(ln.strip()) for ln in lines]
-        assert len(set(widths)) == 1
+    correct = """\
+┌─────────┐
+│ Hello   │
+│ World   │
+└─────────┘
+"""
 
-    def test_rounded_corners(self):
-        broken = (
-            "╭──────────╮\n"
-            "│ Content   │\n"
-            "╰──────────╯\n"
-        )
-        fixed, changes = fix_boxes(broken)
-        lines = [ln for ln in fixed.split("\n") if ln.strip()]
-        widths = [visual_width(ln.strip()) for ln in lines]
-        assert len(set(widths)) == 1
+    def test_unicode_misaligned(self) -> None:
+        broken = """\
+┌──────────┐
+│ Hello     │
+│ World    │
+└──────────┘
+"""
+        fixed, _changes = fix_boxes(broken)
+        assert fixed == self.correct
+
+
+class TestRoundedCornerBox:
+    """Test fixing rounded-corner Unicode boxes (╭╮╰╯)."""
+
+    correct = """\
+╭─────────╮
+│ Content │
+╰─────────╯
+"""
+
+    def test_rounded_misaligned(self) -> None:
+        broken = """\
+╭─────────╮
+│ Content  │
+╰─────────╯
+"""
+        fixed, _changes = fix_boxes(broken)
+        assert fixed == self.correct
 
 
 class TestStackedBoxes:
     """Test fixing stacked boxes (multiple boxes vertically)."""
 
-    def test_two_stacked(self):
-        broken = (
-            "+----------+\n"
-            "| Box One   |\n"
-            "+----------+\n"
-            "| Box Two  |\n"
-            "+----------+\n"
-        )
-        fixed, changes = fix_boxes(broken)
-        lines = [ln for ln in fixed.split("\n") if ln.strip()]
-        widths = [visual_width(ln.strip()) for ln in lines]
-        # All lines in both boxes should align
-        assert max(widths) - min(widths) <= 0, f"Widths: {widths}"
+    correct = """\
++---------+
+| Box One |
++---------+
+| Box Two |
++---------+
+"""
+
+    def test_two_stacked(self) -> None:
+        broken = """\
++----------+
+| Box One   |
++----------+
+| Box Two  |
++----------+
+"""
+        fixed, _changes = fix_boxes(broken)
+        assert fixed == self.correct
 
 
+@pytest.mark.parametrize(
+    ("target", "correct"),
+    [
+        (
+            "terminal",
+            """\
+┌──────────────┐
+│ 📦📦 Package │
+│ ✅✅ Complete │
+└──────────────┘
+""",
+        ),
+        (
+            "github",
+            """\
+┌──────────────┐
+│ 📦📦 Package │
+│ ✅✅ Complete │
+└──────────────┘
+""",
+        ),
+    ],
+)
 class TestEmojiInBox:
     """Test boxes with emoji content (where len() != visual_width)."""
 
-    def test_emoji_content(self):
-        broken = (
-            "┌──────────────┐\n"
-            "│ 📦 Package    │\n"
-            "│ ✅ Complete  │\n"
-            "└──────────────┘\n"
-        )
-        fixed, changes = fix_boxes(broken)
-        lines = [ln for ln in fixed.split("\n") if ln.strip()]
-        widths = [visual_width(ln.strip()) for ln in lines]
-        assert len(set(widths)) == 1, f"Widths not uniform: {widths}"
+    # TODO: For visuals within VS Code GUI, can't be correct unless 2 emojis are used.
+
+    def test_emoji_misaligned(self, target: str, correct: str) -> None:
+        broken = """\
+┌──────────────┐
+│ 📦📦 Package    │
+│ ✅✅ Complete  │
+└──────────────┘
+"""
+        fixed, _changes = fix_boxes(broken, target=target)
+        assert fixed == correct
+
+    def test_already_correct(self, target: str, correct: str) -> None:
+        fixed, _changes = fix_boxes(correct, target=target)
+        assert fixed == correct
 
 
 class TestNoBoxes:
     """Test that text without boxes passes through unchanged."""
 
-    def test_plain_text(self):
+    def test_plain_text(self) -> None:
         text = "Hello world\nThis is just text\nNo boxes here"
         fixed, changes = fix_boxes(text)
         assert fixed == text
         assert changes == []
 
-    def test_empty_string(self):
+    def test_empty_string(self) -> None:
         fixed, changes = fix_boxes("")
         assert fixed == ""
         assert changes == []
 
-    def test_single_pipe(self):
+    def test_single_pipe(self) -> None:
         text = "| not a box |"
         fixed, changes = fix_boxes(text)
         assert fixed == text
@@ -130,17 +167,160 @@ class TestNoBoxes:
 class TestIndentedBox:
     """Test boxes with leading whitespace."""
 
-    def test_indented(self):
-        broken = (
-            "    ┌──────────┐\n"
-            "    │ Content   │\n"
-            "    └──────────┘\n"
-        )
-        fixed, changes = fix_boxes(broken)
-        lines = [ln for ln in fixed.split("\n") if ln.strip()]
-        # Check indentation is preserved
-        for line in lines:
-            assert line.startswith("    ")
-        # Check alignment
-        widths = [visual_width(ln.strip()) for ln in lines]
-        assert len(set(widths)) == 1
+    correct = """\
+    ┌───────────┐
+    │ Content   │
+    └───────────┘
+"""
+
+    def test_indented(self) -> None:
+        broken = """\
+    ┌──────────┐
+    │ Content   │
+    └──────────┘
+"""
+        fixed, _changes = fix_boxes(broken)
+        assert fixed == self.correct
+
+
+class TestNestedBox:
+    """Box containing a nested box — borders should align."""
+
+    correct = """\
+┌──────────────────────────────────────────────────────────┐
+│                    DATA PIPELINE                         │
+│                                                          │
+│                                    ┌───────────┐         │
+│                                    │ Chunking  │         │
+│                                    │ Enrichment│         │
+│                                    └───────────┘         │
+│                                                          │
+└──────────────────────────────────────────────────────────┘"""
+
+    def test_nested_box_fixed(self) -> None:
+        broken = """\
+┌──────────────────────────────────────────────────────────┐
+│                    DATA PIPELINE                         │
+│                                                          │
+│                                    ┌─────────┐           │
+│                                    │ Chunking │           │
+│                                    │ Enrichment│          │
+│                                    └─────────┘           │
+│                                                          │
+└──────────────────────────────────────────────────────────┘"""
+        fixed, _changes = fix_boxes(broken)
+        assert fixed == self.correct
+
+    def test_already_correct(self) -> None:
+        fixed, changes = fix_boxes(self.correct)
+        assert fixed == self.correct
+        assert changes == []
+
+
+class TestFullReproBox:
+    """Two large boxes with nested boxes — full reproduction from issue."""
+
+    # TODO: Impossible in VS Code UI due to arrows.
+    correct = """\
+┌───────────────────────────────────────────────────────────┐
+│                    DATA PIPELINE                          │
+│                                                           │
+│  S3/GCS Docs ──▶ Fabric OneLake ──▶ Azure Blob/ADLS      │
+│                     (shortcut)          │                 │
+│                                         ▼                 │
+│                                  AI Search Indexer        │
+│                                    ┌───────────┐          │
+│                                    │ Chunking  │          │
+│                                    │ Enrichment│          │
+│                                    │ Embedding │          │
+│                                    └───────────┘          │
+│                                         │                 │
+│                                         ▼                 │
+│                                  Search Index             │
+│                              (vectors + text + metadata)  │
+└───────────────────────────────────────────────────────────┘
+
+┌───────────────────────────────────────────────────────────┐
+│                    QUERY PIPELINE                         │
+│                                                           │
+│  User Query ──▶ Orchestrator ──▶ Azure AI Search         │
+│                 (Semantic Kernel,   │                     │
+│                  Agent Framework)   ▼                     │
+│                              Hybrid Search                │
+│                        (keyword + vector + semantic rank) │
+│                                    │                      │
+│                                    ▼                      │
+│                              Top-K Results                │
+│                                    │                      │
+│                                    ▼                      │
+│                              LLM (GPT-4o)                 │
+│                              ──▶ Answer + Citations      │
+└───────────────────────────────────────────────────────────┘"""
+
+    def test_full_repro_fixed(self) -> None:
+        broken = """\
+┌──────────────────────────────────────────────────────────┐
+│                    DATA PIPELINE                         │
+│                                                          │
+│  S3/GCS Docs ──▶ Fabric OneLake ──▶ Azure Blob/ADLS    │
+│                     (shortcut)          │                │
+│                                         ▼                │
+│                                  AI Search Indexer        │
+│                                    ┌─────────┐           │
+│                                    │ Chunking │           │
+│                                    │ Enrichment│          │
+│                                    │ Embedding │          │
+│                                    └─────────┘           │
+│                                         │                │
+│                                         ▼                │
+│                                  Search Index            │
+│                              (vectors + text + metadata) │
+└──────────────────────────────────────────────────────────┘
+
+┌──────────────────────────────────────────────────────────┐
+│                    QUERY PIPELINE                         │
+│                                                          │
+│  User Query ──▶ Orchestrator ──▶ Azure AI Search         │
+│                 (Semantic Kernel,   │                     │
+│                  Agent Framework)   ▼                     │
+│                              Hybrid Search               │
+│                        (keyword + vector + semantic rank) │
+│                                    │                     │
+│                                    ▼                     │
+│                              Top-K Results               │
+│                                    │                     │
+│                                    ▼                     │
+│                              LLM (GPT-4o)                │
+│                              ──▶ Answer + Citations      │
+└──────────────────────────────────────────────────────────┘"""
+        fixed, _changes = fix_boxes(broken)
+        assert fixed == self.correct
+
+    def test_already_correct(self) -> None:
+        fixed, changes = fix_boxes(self.correct)
+        assert fixed == self.correct
+        assert changes == []
+
+
+class TestAsciiBoxTight:
+    """ASCII box with tight-fitting borders."""
+
+    correct = """\
++-------+
+| hello |
+| world |
++-------+"""
+
+    def test_ascii_box_fixed(self) -> None:
+        broken = """\
++-------+
+| hello  |
+| world |
++-------+"""
+        fixed, _changes = fix_boxes(broken)
+        assert fixed == self.correct
+
+    def test_already_correct(self) -> None:
+        fixed, changes = fix_boxes(self.correct)
+        assert fixed == self.correct
+        assert changes == []

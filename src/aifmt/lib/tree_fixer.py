@@ -25,10 +25,7 @@ from dataclasses import dataclass, field
 _PIPE_CHARS = frozenset("│|")
 _BRANCH_CHARS = frozenset("├└")
 _HORIZ_CHARS = frozenset("─—–-")
-_ALL_TREE = (
-    _PIPE_CHARS | _BRANCH_CHARS | frozenset("┌┐┘┤┬┴┼╭╮╯╰")
-    | _HORIZ_CHARS | frozenset("+")
-)
+_ALL_TREE = _PIPE_CHARS | _BRANCH_CHARS | frozenset("┌┐┘┤┬┴┼╭╮╯╰") | _HORIZ_CHARS | frozenset("+")
 
 # Box-drawing top-left / bottom-left and top-right / bottom-right corners
 _BOX_TL = frozenset("┌╭╔")
@@ -56,8 +53,8 @@ class TreeNode:
 class _Entry:
     """Parsed representation of a single content-bearing tree line."""
 
-    branch_col: int     # column of ├ or └ (-1 if no branch char)
-    content: str        # text content after tree prefix
+    branch_col: int  # column of ├ or └ (-1 if no branch char)
+    content: str  # text content after tree prefix
     has_tree_chars: bool  # whether line contains any tree drawing chars
 
 
@@ -74,7 +71,7 @@ def fix_trees(text: str, *, target: str = "terminal") -> tuple[str, list[str]]:
     regions = _find_tree_regions(lines)
 
     for start, end in reversed(regions):
-        region = lines[start:end + 1]
+        region = lines[start : end + 1]
         root = _parse_tree(region)
         if root is None:
             continue
@@ -82,11 +79,8 @@ def fix_trees(text: str, *, target: str = "terminal") -> tuple[str, list[str]]:
         rendered = _render_tree(root)
 
         if rendered != region:
-            changes.append(
-                f"Fixed tree diagram alignment "
-                f"(lines {start + 1}–{end + 1})"
-            )
-            lines[start:end + 1] = rendered
+            changes.append(f"Fixed tree diagram alignment (lines {start + 1}–{end + 1})")
+            lines[start : end + 1] = rendered
 
     return "\n".join(lines), changes
 
@@ -133,9 +127,12 @@ def _find_box_lines(lines: list[str]) -> set[int]:
         # and the middle is mostly horizontal fill.
         first, last = stripped[0], stripped[-1]
         is_tl_tr = first in _BOX_TL and last in _BOX_TR
-        is_ascii_top = (first == "+" and last == "+"
-                        and len(stripped) >= 3
-                        and all(c in "-+= " for c in stripped[1:-1]))
+        is_ascii_top = (
+            first == "+"
+            and last == "+"
+            and len(stripped) >= 3
+            and all(c in "-+= " for c in stripped[1:-1])
+        )
 
         if not (is_tl_tr or is_ascii_top):
             continue
@@ -166,9 +163,9 @@ def _find_box_lines(lines: list[str]) -> set[int]:
 
             f2, l2 = s2[0], s2[-1]
             is_bl_br = f2 in _BOX_BL and l2 in _BOX_BR
-            is_ascii_bot = (f2 == "+" and l2 == "+"
-                            and len(s2) >= 3
-                            and all(c in "-+= " for c in s2[1:-1]))
+            is_ascii_bot = (
+                f2 == "+" and l2 == "+" and len(s2) >= 3 and all(c in "-+= " for c in s2[1:-1])
+            )
 
             if is_bl_br or is_ascii_bot:
                 # Verify there are content lines with vertical borders between
@@ -189,7 +186,7 @@ def _find_box_lines(lines: list[str]) -> set[int]:
 
             # If we hit another top-border at the same indent, this might be
             # stacked boxes — stop looking for a bottom for the current top.
-            if (f2 in _BOX_TL or (f2 == "+" and l2 == "+")):
+            if f2 in _BOX_TL or (f2 == "+" and l2 == "+"):
                 if j_indent == indent:
                     break
 
@@ -219,9 +216,7 @@ def _find_tree_regions(lines: list[str]) -> list[tuple[int, int]]:
             # Look back: plain-text root line immediately before tree chars
             if start > 0 and start - 1 not in box_excluded:
                 prev = lines[start - 1].strip()
-                if (prev
-                        and not prev.startswith("#")
-                        and not _is_tree_line(lines[start - 1])):
+                if prev and not prev.startswith("#") and not _is_tree_line(lines[start - 1]):
                     start -= 1
 
             # Extend forward
@@ -232,9 +227,11 @@ def _find_tree_regions(lines: list[str]) -> list[tuple[int, int]]:
                 if _is_tree_line(nxt):
                     end += 1
                 elif not nxt.strip():
-                    if (end + 2 < n
-                            and end + 2 not in box_excluded
-                            and _is_tree_line(lines[end + 2])):
+                    if (
+                        end + 2 < n
+                        and end + 2 not in box_excluded
+                        and _is_tree_line(lines[end + 2])
+                    ):
                         end += 2
                     else:
                         break
@@ -332,8 +329,7 @@ def _parse_tree(region_lines: list[str]) -> TreeNode | None:
         if entry.branch_col >= 0:
             # ── Branch entry (├── or └──) — definite child ──
             # Pop stack until we find a node at a shallower branch column
-            while (len(stack) > 1
-                   and stack[-1][0] >= entry.branch_col):
+            while len(stack) > 1 and stack[-1][0] >= entry.branch_col:
                 stack.pop()
 
             parent = stack[-1][1]
@@ -379,7 +375,7 @@ def _render_children(
 ) -> None:
     """Render *children* with correct ├──/└── connectors and │ pipes."""
     for i, child in enumerate(children):
-        is_last = (i == len(children) - 1)
+        is_last = i == len(children) - 1
         connector = "└── " if is_last else "├── "
         cont_prefix = "    " if is_last else "│   "
 

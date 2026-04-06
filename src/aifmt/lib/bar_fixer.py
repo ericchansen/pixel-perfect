@@ -25,19 +25,19 @@ _EMPTY_CHARS = set("░○·.─-")
 #   5. optional closing bracket ] or |
 #   6. optional trailing percentage like " 75%" or " 100%"
 _BAR_RE = re.compile(
-    r"^(?P<prefix>.*?)"                          # label / leading text
-    r"(?P<open>[\[|])?"                           # optional open bracket
-    r"(?P<fill>[█▓#=]{1,})"                       # filled portion
-    r"(?P<empty>[░○·.\-─]{0,})"                   # empty portion (may be 0-length)
-    r"(?P<close>[\]|])?"                          # optional close bracket
-    r"(?P<suffix>\s+(?P<pct>\d{1,3})%)?$"         # optional percentage
+    r"^(?P<prefix>.*?)"  # label / leading text
+    r"(?P<open>[\[|])?"  # optional open bracket
+    r"(?P<fill>[█▓#=]{1,})"  # filled portion
+    r"(?P<empty>[░○·.\-─]{0,})"  # empty portion (may be 0-length)
+    r"(?P<close>[\]|])?"  # optional close bracket
+    r"(?P<suffix>\s+(?P<pct>\d{1,3})%)?$"  # optional percentage
 )
 
 # Also match bars that are *all* empty (0 %)
 _EMPTY_BAR_RE = re.compile(
     r"^(?P<prefix>.*?)"
     r"(?P<open>[\[|])?"
-    r"(?P<empty>[░○·.\-─]{2,})"                  # all-empty bar (min 2 chars)
+    r"(?P<empty>[░○·.\-─]{2,})"  # all-empty bar (min 2 chars)
     r"(?P<close>[\]|])?"
     r"(?P<suffix>\s+(?P<pct>0)%)?$"
 )
@@ -55,8 +55,8 @@ class _BarInfo:
     empty_char: str
     empty_count: int
     close_bracket: str
-    pct: int | None          # percentage if present, else None
-    suffix_space: str        # whitespace between bar end and percentage
+    pct: int | None  # percentage if present, else None
+    suffix_space: str  # whitespace between bar end and percentage
     total: int = field(init=False)
 
     def __post_init__(self) -> None:

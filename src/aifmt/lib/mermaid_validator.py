@@ -51,18 +51,16 @@ _FLOWCHART_ARROWS = re.compile(
 )
 
 # sequenceDiagram arrow patterns
-_SEQ_ARROWS = re.compile(
-    r"->>|-->>|->|-->|-x|--x|-\)|--\)"
-)
+_SEQ_ARROWS = re.compile(r"->>|-->>|->|-->|-x|--x|-\)|--\)")
 
 
 @dataclass
 class MermaidIssue:
     """A single validation issue within a mermaid block."""
 
-    line: int       # 1-based line number within the mermaid block
-    message: str    # Human-readable description
-    severity: str   # "error" or "warning"
+    line: int  # 1-based line number within the mermaid block
+    message: str  # Human-readable description
+    severity: str  # "error" or "warning"
 
 
 def _validate_block(block_text: str) -> list[MermaidIssue]:
@@ -159,6 +157,7 @@ def _check_brackets(line: str, line_no: int, issues: list[MermaidIssue]) -> None
 # ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
+
 
 def validate_mermaid(text: str) -> list[MermaidIssue]:
     """Validate all mermaid code blocks in *text*.

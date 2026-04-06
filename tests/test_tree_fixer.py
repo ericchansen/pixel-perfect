@@ -4,23 +4,25 @@ The tree fixer parses misaligned tree diagrams into a node model,
 then re-renders them with correct ├──/└──/│ alignment.
 """
 
+from conftest import ShowVisual
+
 from aifmt.lib.tree_fixer import fix_trees
 
 
 class TestTreeDetection:
     """Test that tree regions are correctly identified in text."""
 
-    def test_simple_tree_detected(self):
+    def test_simple_tree_detected(self) -> None:
         tree = "Root\n  ├── Child A\n  └── Child B"
         _, changes = fix_trees(tree)
         assert isinstance(changes, list)
 
-    def test_non_tree_content_ignored(self):
+    def test_non_tree_content_ignored(self) -> None:
         text = "This is a paragraph.\nNo tree characters.\nNothing to fix."
         _, changes = fix_trees(text)
         assert len(changes) == 0
 
-    def test_single_pipe_not_a_tree(self):
+    def test_single_pipe_not_a_tree(self) -> None:
         text = "Use | for pipes in bash"
         _, changes = fix_trees(text)
         assert len(changes) == 0
@@ -29,33 +31,31 @@ class TestTreeDetection:
 class TestCorrectTrees:
     """Correctly-structured trees should produce zero changes."""
 
-    def test_simple_two_children(self):
+    def test_simple_two_children(self) -> None:
         tree = "Root\n├── Child A\n└── Child B"
         fixed, changes = fix_trees(tree)
         assert len(changes) == 0
         assert fixed == tree
 
-    def test_nested_tree(self):
-        tree = (
-            "Root\n"
-            "├── Parent\n"
-            "│   ├── Child A\n"
-            "│   └── Child B\n"
-            "└── Sibling"
-        )
+    def test_nested_tree(self) -> None:
+        tree = """\
+Root
+├── Parent
+│   ├── Child A
+│   └── Child B
+└── Sibling"""
         fixed, changes = fix_trees(tree)
         assert len(changes) == 0
         assert fixed == tree
 
-    def test_deep_nesting(self):
-        tree = (
-            "Root\n"
-            "├── Level 1\n"
-            "│   ├── Level 2\n"
-            "│   │   └── Level 3\n"
-            "│   └── Level 2b\n"
-            "└── Level 1b"
-        )
+    def test_deep_nesting(self) -> None:
+        tree = """\
+Root
+├── Level 1
+│   ├── Level 2
+│   │   └── Level 3
+│   └── Level 2b
+└── Level 1b"""
         fixed, changes = fix_trees(tree)
         assert len(changes) == 0
         assert fixed == tree
@@ -64,422 +64,380 @@ class TestCorrectTrees:
 class TestMisalignedPipes:
     """Trees with pipe columns that don't match branch columns."""
 
-    def test_pipe_misaligned_gets_fixed(self):
+    correct = """\
+Root
+├── Parent
+│   ├── Child A
+│   └── Child B
+└── Sibling"""
+
+    def test_pipe_misaligned_gets_fixed(self) -> None:
         """Pipe at wrong column should be realigned."""
-        tree = (
-            "Root\n"
-            "  ├── Parent\n"
-            "  │              │\n"
-            "  │    ├── Child A\n"
-            "  │    │\n"
-            "  │    └── Child B\n"
-            "  └── Sibling"
-        )
-        fixed, changes = fix_trees(tree)
+        broken = """\
+Root
+  ├── Parent
+  │              │
+  │    ├── Child A
+  │    │
+  │    └── Child B
+  └── Sibling"""
+        fixed, changes = fix_trees(broken)
+        assert fixed == self.correct
         assert len(changes) >= 1
 
-        lines = fixed.split("\n")
-        assert lines[0] == "Root"
-        assert "├── Parent" in lines[1]
-        assert "├── Child A" in fixed
-        assert "└── Child B" in fixed
-        assert "└── Sibling" in fixed
-
-    def test_pipe_aligned_no_changes(self):
-        """Pipe correctly aligned → no changes needed."""
-        tree = (
-            "Root\n"
-            "├── Parent\n"
-            "│   ├── Child A\n"
-            "│   └── Child B\n"
-            "└── Sibling"
-        )
-        fixed, changes = fix_trees(tree)
+    def test_already_aligned(self) -> None:
+        """Already correct tree → no changes."""
+        fixed, changes = fix_trees(self.correct)
+        assert fixed == self.correct
         assert len(changes) == 0
 
 
-class TestOrphanedContent:
-    """Content lines without tree connectors get connectors added."""
+class TestOrphanedSingleChild:
+    """Single orphaned content line gets a connector added."""
 
-    def test_orphaned_child_gets_connector(self):
-        """Content under a pipe without ├/└ should get a connector."""
-        tree = (
-            "Root\n"
-            "  ├── Parent\n"
-            "  │     │\n"
-            "  │     Orphaned Child\n"
-            "  └── Sibling"
-        )
-        fixed, changes = fix_trees(tree)
+    correct = """\
+Root
+├── Parent
+│   └── Orphaned Child
+└── Sibling"""
+
+    def test_orphaned_child_gets_connector(self) -> None:
+        broken = "Root\n  ├── Parent\n  │     │\n  │     Orphaned Child\n  └── Sibling"
+        fixed, changes = fix_trees(broken)
+        assert fixed == self.correct
         assert len(changes) >= 1
-        # The orphaned child should now have a proper connector
-        assert "Orphaned Child" in fixed
-        assert "└── Orphaned Child" in fixed or "├── Orphaned Child" in fixed
 
-    def test_multiple_orphans_get_connectors(self):
-        tree = (
-            "Root\n"
-            "  ├── Parent\n"
-            "  │     │\n"
-            "  │     Orphan A\n"
-            "  │     │\n"
-            "  │     Orphan B\n"
-            "  └── Sibling"
-        )
-        fixed, changes = fix_trees(tree)
+
+class TestOrphanedMultipleChildren:
+    """Multiple orphaned content lines get connectors added."""
+
+    correct = """\
+Root
+├── Parent
+│   ├── Orphan A
+│   └── Orphan B
+└── Sibling"""
+
+    def test_multiple_orphans_get_connectors(self) -> None:
+        broken = """\
+Root
+  ├── Parent
+  │     │
+  │     Orphan A
+  │     │
+  │     Orphan B
+  └── Sibling"""
+        fixed, changes = fix_trees(broken)
+        assert fixed == self.correct
         assert len(changes) >= 1
-        assert "├── Orphan A" in fixed
-        assert "└── Orphan B" in fixed
 
 
-class TestContinuationText:
+class TestContinuationPreserved:
     """Non-tree continuation lines stay as continuations."""
 
-    def test_continuation_preserved(self):
-        """Lines without any tree chars are continuations, not children."""
-        tree = (
-            "Root\n"
-            "└── 16 Skills ──▶ skills/report/\n"
-            "    skills/explorer/\n"
-            "    skills/impact/"
-        )
-        fixed, changes = fix_trees(tree)
-        assert "skills/explorer/" in fixed
-        assert "skills/impact/" in fixed
-        # Should NOT have ├── or └── before continuation paths
-        lines = fixed.split("\n")
-        for line in lines:
-            if "skills/explorer/" in line or "skills/impact/" in line:
-                assert "├──" not in line and "└──" not in line
+    correct = """\
+Root
+└── 16 Skills ──▶ skills/report/
+    skills/explorer/
+    skills/impact/"""
 
-    def test_parenthetical_is_continuation(self):
-        """Text starting with '(' is continuation of previous node."""
-        tree = (
-            "Root\n"
-            "  ├── MSX D365 Sales\n"
-            "  │   (sales.crm.dynamics.com)\n"
-            "  └── Other"
-        )
-        fixed, changes = fix_trees(tree)
-        lines = fixed.split("\n")
-        # Find the parenthetical line
-        paren_lines = [ln for ln in lines if "(sales.crm" in ln]
-        assert len(paren_lines) == 1
-        # Should NOT have a connector
-        assert "├── (sales" not in fixed and "└── (sales" not in fixed
+    def test_continuation_preserved(self) -> None:
+        """Lines without any tree chars are continuations, not children."""
+        fixed, changes = fix_trees(self.correct)
+        assert fixed == self.correct
+        assert len(changes) == 0
+
+
+class TestParentheticalContinuation:
+    """Text starting with '(' is continuation of previous node."""
+
+    correct = """\
+Root
+├── MSX D365 Sales
+│   (sales.crm.dynamics.com)
+└── Other"""
+
+    def test_parenthetical_is_continuation(self) -> None:
+        broken = "Root\n  ├── MSX D365 Sales\n  │   (sales.crm.dynamics.com)\n  └── Other"
+        fixed, _changes = fix_trees(broken)
+        assert fixed == self.correct
 
 
 class TestMsxMcpDiagram:
     """Integration test using the real MSX-MCP README architecture diagram."""
 
-    MSX_TREE = (
-        "GitHub Copilot CLI\n"
-        "  │\n"
-        "  ├── stdio ──▶ MSX MCP Server (TypeScript, 37 tools)\n"
-        "  │                    │\n"
-        "  │             ├── Auth Tools (msx_login, msx_auth_status)\n"
-        "  │             │        │\n"
-        "  │             │    Azure CLI (az login)\n"
-        "  │             │\n"
-        "  │             └── Data Tools (35 tools)\n"
-        "  │                      │\n"
-        "  │               Dataverse Web API (OData v4)\n"
-        "  │                      │\n"
-        "  │               MSX D365 Sales\n"
-        "  │               (sales.crm.dynamics.com)\n"
-        "  │\n"
-        "  ├── @msx Agent ──▶ agents/msx.agent.md\n"
-        "  │\n"
-        "  └── 16 Skills ──▶ skills/monthly-opportunity-report/"
-    )
+    broken = """\
+GitHub Copilot CLI
+  │
+  ├── stdio ──▶ MSX MCP Server (TypeScript, 37 tools)
+  │                    │
+  │             ├── Auth Tools (msx_login, msx_auth_status)
+  │             │        │
+  │             │    Azure CLI (az login)
+  │             │
+  │             └── Data Tools (35 tools)
+  │                      │
+  │               Dataverse Web API (OData v4)
+  │                      │
+  │               MSX D365 Sales
+  │               (sales.crm.dynamics.com)
+  │
+  ├── @msx Agent ──▶ agents/msx.agent.md
+  │
+  └── 16 Skills ──▶ skills/monthly-opportunity-report/"""
 
-    def test_fixes_structure(self):
-        """The fixer should produce a valid tree from the broken MSX diagram."""
-        fixed, changes = fix_trees(self.MSX_TREE, target="github")
+    correct = """\
+GitHub Copilot CLI
+├── stdio ──▶ MSX MCP Server (TypeScript, 37 tools)
+│   ├── Auth Tools (msx_login, msx_auth_status)
+│   │   └── Azure CLI (az login)
+│   └── Data Tools (35 tools)
+│       ├── Dataverse Web API (OData v4)
+│       └── MSX D365 Sales
+│           (sales.crm.dynamics.com)
+├── @msx Agent ──▶ agents/msx.agent.md
+└── 16 Skills ──▶ skills/monthly-opportunity-report/"""
+
+    def test_fixes_structure(self) -> None:
+        fixed, changes = fix_trees(self.broken, target="github")
+        assert fixed == self.correct
         assert len(changes) >= 1
-
-    def test_preserves_all_content(self):
-        """All meaningful content from the original should appear in the fix."""
-        fixed, _ = fix_trees(self.MSX_TREE, target="github")
-        for content in [
-            "GitHub Copilot CLI",
-            "stdio",
-            "MSX MCP Server",
-            "Auth Tools",
-            "Azure CLI",
-            "Data Tools",
-            "Dataverse Web API",
-            "MSX D365 Sales",
-            "(sales.crm.dynamics.com)",
-            "@msx Agent",
-            "16 Skills",
-        ]:
-            assert content in fixed, f"Missing content: {content}"
-
-    def test_correct_hierarchy(self):
-        """The fixed tree should have correct parent-child relationships."""
-        fixed, _ = fix_trees(self.MSX_TREE, target="github")
-        lines = fixed.split("\n")
-
-        # Root
-        assert lines[0] == "GitHub Copilot CLI"
-
-        # Top-level children use ├── or └──
-        top_children = [ln for ln in lines if ln.startswith("├── ") or ln.startswith("└── ")]
-        labels = [ln.split("── ", 1)[1] for ln in top_children]
-        assert any("stdio" in lb for lb in labels)
-        assert any("@msx Agent" in lb for lb in labels)
-        assert any("16 Skills" in lb for lb in labels)
-
-    def test_auth_tools_under_stdio(self):
-        """Auth Tools should be a child of stdio, not at root level."""
-        fixed, _ = fix_trees(self.MSX_TREE, target="github")
-        lines = fixed.split("\n")
-        for line in lines:
-            if "Auth Tools" in line:
-                # Should be indented (not at column 0)
-                assert line.startswith("│") or line.startswith("    "), (
-                    f"Auth Tools should be nested: {line}"
-                )
-                break
-
-    def test_azure_cli_under_auth_tools(self):
-        """Azure CLI should be a child of Auth Tools."""
-        fixed, _ = fix_trees(self.MSX_TREE, target="github")
-        lines = fixed.split("\n")
-        for i, line in enumerate(lines):
-            if "Azure CLI" in line:
-                assert "└── Azure CLI" in line, (
-                    f"Azure CLI should have └── connector: {line}"
-                )
-                break
-
-    def test_dataverse_under_data_tools(self):
-        """Dataverse Web API should be a child of Data Tools."""
-        fixed, _ = fix_trees(self.MSX_TREE, target="github")
-        lines = fixed.split("\n")
-        data_idx = next(i for i, ln in enumerate(lines) if "Data Tools" in ln)
-        dv_idx = next(i for i, ln in enumerate(lines) if "Dataverse" in ln)
-        assert dv_idx > data_idx
-        # Dataverse line should be longer (deeper prefix) than Data Tools
-        dv_line = lines[dv_idx]
-        assert "├── Dataverse" in dv_line or "└── Dataverse" in dv_line
-
-    def test_sales_continuation(self):
-        """(sales.crm.dynamics.com) should be continuation of MSX D365 Sales."""
-        fixed, _ = fix_trees(self.MSX_TREE, target="github")
-        # Should NOT have a connector before the parenthetical
-        assert "├── (sales.crm" not in fixed
-        assert "└── (sales.crm" not in fixed
-        assert "(sales.crm.dynamics.com)" in fixed
 
 
 class TestMsxWithContinuation:
-    """Test the full MSX tree including skills continuation lines."""
+    """Full MSX tree including skills continuation lines."""
 
-    MSX_FULL = (
-        "GitHub Copilot CLI\n"
-        "  │\n"
-        "  ├── stdio ──▶ MSX MCP Server (TypeScript, 37 tools)\n"
-        "  │                    │\n"
-        "  │             ├── Auth Tools (msx_login, msx_auth_status)\n"
-        "  │             │        │\n"
-        "  │             │    Azure CLI (az login)\n"
-        "  │             │\n"
-        "  │             └── Data Tools (35 tools)\n"
-        "  │                      │\n"
-        "  │               Dataverse Web API (OData v4)\n"
-        "  │                      │\n"
-        "  │               MSX D365 Sales\n"
-        "  │               (sales.crm.dynamics.com)\n"
-        "  │\n"
-        "  ├── @msx Agent ──▶ agents/msx.agent.md\n"
-        "  │\n"
-        "  └── 16 Skills ──▶ skills/monthly-opportunity-report/\n"
-        "                     skills/weekly-impact-report/\n"
-        "                     skills/account-explorer/"
-    )
+    broken = """\
+GitHub Copilot CLI
+  │
+  ├── stdio ──▶ MSX MCP Server (TypeScript, 37 tools)
+  │                    │
+  │             ├── Auth Tools (msx_login, msx_auth_status)
+  │             │        │
+  │             │    Azure CLI (az login)
+  │             │
+  │             └── Data Tools (35 tools)
+  │                      │
+  │               Dataverse Web API (OData v4)
+  │                      │
+  │               MSX D365 Sales
+  │               (sales.crm.dynamics.com)
+  │
+  ├── @msx Agent ──▶ agents/msx.agent.md
+  │
+  └── 16 Skills ──▶ skills/monthly-opportunity-report/
+                     skills/weekly-impact-report/
+                     skills/account-explorer/"""
 
-    def test_skills_continuations_preserved(self):
-        """skills/ paths are continuation text, not children."""
-        fixed, _ = fix_trees(self.MSX_FULL, target="github")
-        assert "skills/weekly-impact-report/" in fixed
-        assert "skills/account-explorer/" in fixed
-        # They should NOT have connectors
-        assert "├── skills/weekly" not in fixed
-        assert "└── skills/account" not in fixed
+    correct = """\
+GitHub Copilot CLI
+├── stdio ──▶ MSX MCP Server (TypeScript, 37 tools)
+│   ├── Auth Tools (msx_login, msx_auth_status)
+│   │   └── Azure CLI (az login)
+│   └── Data Tools (35 tools)
+│       ├── Dataverse Web API (OData v4)
+│       └── MSX D365 Sales
+│           (sales.crm.dynamics.com)
+├── @msx Agent ──▶ agents/msx.agent.md
+└── 16 Skills ──▶ skills/monthly-opportunity-report/
+    skills/weekly-impact-report/
+    skills/account-explorer/"""
+
+    def test_full_tree_with_continuations(self) -> None:
+        fixed, changes = fix_trees(self.broken, target="github")
+        assert fixed == self.correct
+        assert len(changes) >= 1
 
 
-class TestBoxExclusion:
-    """Box-drawing diagrams must NOT be processed by the tree fixer.
+class TestBoxExclusionSingle:
+    """Single box diagram must NOT be processed by the tree fixer."""
 
-    Box borders (┌, │, └, ─) overlap with tree-drawing characters (├, └, │).
-    The tree fixer must detect rectangular box enclosures and skip them.
-    """
+    # TODO: Impossible to get correct in VS Code UI, possibly due to arrow.
+    correct = """\
+┌───────────────────────────────────────────────────────┐
+│                    DATA PIPELINE                      │
+│                                                       │
+│  S3/GCS Docs ──▶ Fabric OneLake ──▶ Azure Blob/ADLS  │
+│                     (shortcut)          │             │
+│                                         ▼             │
+│                                  AI Search Indexer    │
+└───────────────────────────────────────────────────────┘"""
 
-    SINGLE_BOX = (
-        "┌──────────────────────────────────────────────────────────┐\n"
-        "│                    DATA PIPELINE                         │\n"
-        "│                                                          │\n"
-        "│  S3/GCS Docs ──▶ Fabric OneLake ──▶ Azure Blob/ADLS    │\n"
-        "│                     (shortcut)          │                │\n"
-        "│                                         ▼                │\n"
-        "│                                  AI Search Indexer        │\n"
-        "└──────────────────────────────────────────────────────────┘"
-    )
-
-    STACKED_BOXES = (
-        "┌──────────────────────────────────────────────────────────┐\n"
-        "│                    DATA PIPELINE                         │\n"
-        "│                                                          │\n"
-        "│  S3/GCS Docs ──▶ Fabric OneLake ──▶ Azure Blob/ADLS    │\n"
-        "└──────────────────────────────────────────────────────────┘\n"
-        "\n"
-        "┌──────────────────────────────────────────────────────────┐\n"
-        "│                    QUERY PIPELINE                         │\n"
-        "│                                                          │\n"
-        "│  User Query ──▶ Orchestrator ──▶ Azure AI Search         │\n"
-        "└──────────────────────────────────────────────────────────┘"
-    )
-
-    NESTED_BOXES = (
-        "┌──────────────────────────────────────────────────────────┐\n"
-        "│                    DATA PIPELINE                         │\n"
-        "│                                                          │\n"
-        "│                                    ┌─────────┐           │\n"
-        "│                                    │ Chunking │           │\n"
-        "│                                    │ Enrichment│          │\n"
-        "│                                    └─────────┘           │\n"
-        "│                                                          │\n"
-        "└──────────────────────────────────────────────────────────┘"
-    )
-
-    def test_single_box_not_modified(self, show_visual):
+    def test_not_modified(self, show_visual: ShowVisual) -> None:
         """A single box diagram should pass through unchanged."""
-        fixed, changes = fix_trees(self.SINGLE_BOX)
-        show_visual("Single box through tree fixer", self.SINGLE_BOX, fixed, changes)
+        fixed, changes = fix_trees(self.correct)
+        show_visual("Single box through tree fixer", self.correct, fixed, changes)
         assert len(changes) == 0, f"Tree fixer should not touch box: {changes}"
-        assert fixed == self.SINGLE_BOX
+        assert fixed == self.correct
 
-    def test_stacked_boxes_not_modified(self, show_visual):
+
+class TestBoxExclusionStacked:
+    """Two stacked box diagrams must NOT be processed by the tree fixer."""
+
+    # TODO: Impossible to get correct in VS Code UI, possibly due to arrow.
+    correct = """\
+┌───────────────────────────────────────────────────────┐
+│                    DATA PIPELINE                      │
+│                                                       │
+│  S3/GCS Docs ──▶ Fabric OneLake ──▶ Azure Blob/ADLS  |
+└───────────────────────────────────────────────────────┘
+
+┌───────────────────────────────────────────────────────┐
+│                    QUERY PIPELINE                     │
+│                                                       │
+│   User Query ──▶ Orchestrator ──▶ Azure AI Search    │
+└───────────────────────────────────────────────────────┘"""
+
+    def test_not_modified(self, show_visual: ShowVisual) -> None:
         """Two stacked box diagrams should pass through unchanged."""
-        fixed, changes = fix_trees(self.STACKED_BOXES)
-        show_visual("Stacked boxes through tree fixer", self.STACKED_BOXES, fixed, changes)
+        fixed, changes = fix_trees(self.correct)
+        show_visual("Stacked boxes through tree fixer", self.correct, fixed, changes)
         assert len(changes) == 0, f"Tree fixer should not touch stacked boxes: {changes}"
-        assert fixed == self.STACKED_BOXES
+        assert fixed == self.correct
 
-    def test_nested_boxes_not_modified(self, show_visual):
+
+class TestBoxExclusionNested:
+    """A box containing a nested box must NOT be processed by the tree fixer."""
+
+    correct = """\
+┌──────────────────────────────────────────────────────────┐
+│                    DATA PIPELINE                         │
+│                                                          │
+│                                    ┌───────────┐         │
+│                                    │ Chunking  │         │
+│                                    │ Enrichment│         │
+│                                    └───────────┘         │
+│                                                          │
+└──────────────────────────────────────────────────────────┘"""
+
+    def test_not_modified(self, show_visual: ShowVisual) -> None:
         """A box containing a nested box should pass through unchanged."""
-        fixed, changes = fix_trees(self.NESTED_BOXES)
-        show_visual("Nested boxes through tree fixer", self.NESTED_BOXES, fixed, changes)
+        fixed, changes = fix_trees(self.correct)
+        show_visual("Nested boxes through tree fixer", self.correct, fixed, changes)
         assert len(changes) == 0, f"Tree fixer should not touch nested boxes: {changes}"
-        assert fixed == self.NESTED_BOXES
+        assert fixed == self.correct
 
-    def test_issue_repro_full(self, show_visual):
-        """Full reproduction case from the issue — two large boxes with nested boxes."""
-        content = (
-            "┌──────────────────────────────────────────────────────────┐\n"
-            "│                    DATA PIPELINE                         │\n"
-            "│                                                          │\n"
-            "│  S3/GCS Docs ──▶ Fabric OneLake ──▶ Azure Blob/ADLS    │\n"
-            "│                     (shortcut)          │                │\n"
-            "│                                         ▼                │\n"
-            "│                                  AI Search Indexer        │\n"
-            "│                                    ┌─────────┐           │\n"
-            "│                                    │ Chunking │           │\n"
-            "│                                    │ Enrichment│          │\n"
-            "│                                    │ Embedding │          │\n"
-            "│                                    └─────────┘           │\n"
-            "│                                         │                │\n"
-            "│                                         ▼                │\n"
-            "│                                  Search Index            │\n"
-            "│                              (vectors + text + metadata) │\n"
-            "└──────────────────────────────────────────────────────────┘\n"
-            "\n"
-            "┌──────────────────────────────────────────────────────────┐\n"
-            "│                    QUERY PIPELINE                         │\n"
-            "│                                                          │\n"
-            "│  User Query ──▶ Orchestrator ──▶ Azure AI Search         │\n"
-            "│                 (Semantic Kernel,   │                     │\n"
-            "│                  Agent Framework)   ▼                     │\n"
-            "│                              Hybrid Search               │\n"
-            "│                        (keyword + vector + semantic rank) │\n"
-            "│                                    │                     │\n"
-            "│                                    ▼                     │\n"
-            "│                              Top-K Results               │\n"
-            "│                                    │                     │\n"
-            "│                                    ▼                     │\n"
-            "│                              LLM (GPT-4o)                │\n"
-            "│                              ──▶ Answer + Citations      │\n"
-            "└──────────────────────────────────────────────────────────┘"
-        )
-        fixed, changes = fix_trees(content)
-        show_visual("Issue repro: two large boxes with nested boxes", content, fixed, changes)
+
+class TestBoxExclusionFullRepro:
+    """Full reproduction case from the issue — two large boxes with nested boxes."""
+
+    # TODO: Impossible in VS Code UI due to arrows.
+    correct = """\
+┌───────────────────────────────────────────────────────────┐
+│                    DATA PIPELINE                          │
+│                                                           │
+│  S3/GCS Docs ──▶ Fabric OneLake ──▶ Azure Blob/ADLS      │
+│                     (shortcut)          │                 │
+│                                         ▼                 │
+│                                  AI Search Indexer        │
+│                                    ┌───────────┐          │
+│                                    │ Chunking  │          │
+│                                    │ Enrichment│          │
+│                                    │ Embedding │          │
+│                                    └───────────┘          │
+│                                         │                 │
+│                                         ▼                 │
+│                                  Search Index             │
+│                              (vectors + text + metadata)  │
+└───────────────────────────────────────────────────────────┘
+
+┌───────────────────────────────────────────────────────────┐
+│                    QUERY PIPELINE                         │
+│                                                           │
+│  User Query ──▶ Orchestrator ──▶ Azure AI Search         │
+│                 (Semantic Kernel,   │                     │
+│                  Agent Framework)   ▼                     │
+│                              Hybrid Search                │
+│                        (keyword + vector + semantic rank) │
+│                                    │                      │
+│                                    ▼                      │
+│                              Top-K Results                │
+│                                    │                      │
+│                                    ▼                      │
+│                              LLM (GPT-4o)                 │
+│                              ──▶ Answer + Citations      │
+└───────────────────────────────────────────────────────────┘"""
+
+    def test_not_modified(self, show_visual: ShowVisual) -> None:
+        fixed, changes = fix_trees(self.correct)
+        show_visual("Issue repro: two large boxes with nested boxes", self.correct, fixed, changes)
         assert len(changes) == 0, f"Tree fixer destroyed box diagram: {changes}"
-        assert fixed == content
+        assert fixed == self.correct
 
-    def test_rounded_box_not_modified(self, show_visual):
-        """Rounded-corner boxes (╭╮╰╯) should also be excluded."""
-        box = (
-            "╭──────────────────╮\n"
-            "│ 📦 Packages: 42  │\n"
-            "│ ✅ Tests: 100%   │\n"
-            "╰──────────────────╯"
-        )
-        fixed, changes = fix_trees(box)
-        show_visual("Rounded box through tree fixer", box, fixed, changes)
+
+class TestBoxExclusionRounded:
+    """Rounded-corner boxes (╭╮╰╯) must NOT be processed by the tree fixer."""
+
+    # TODO: Impossible due to single emoji per lie.
+    correct = """\
+╭──────────────────╮
+│ 📦 Packages: 42  │
+│ ✅ Tests: 100%   │
+╰──────────────────╯"""
+
+    def test_not_modified(self, show_visual: ShowVisual) -> None:
+        fixed, changes = fix_trees(self.correct)
+        show_visual("Rounded box through tree fixer", self.correct, fixed, changes)
         assert len(changes) == 0
-        assert fixed == box
+        assert fixed == self.correct
 
-    def test_ascii_box_not_modified(self, show_visual):
-        """ASCII boxes (+---+ / |...|) should also be excluded."""
-        box = (
-            "+----------+\n"
-            "| hello    |\n"
-            "| world    |\n"
-            "+----------+"
-        )
-        fixed, changes = fix_trees(box)
-        show_visual("ASCII box through tree fixer", box, fixed, changes)
+
+class TestBoxExclusionAscii:
+    """ASCII boxes (+---+ / |...|) must NOT be processed by the tree fixer."""
+
+    correct = """\
++-------+
+| hello |
+| world |
++-------+"""
+
+    def test_not_modified(self, show_visual: ShowVisual) -> None:
+        fixed, changes = fix_trees(self.correct)
+        show_visual("ASCII box through tree fixer", self.correct, fixed, changes)
         assert len(changes) == 0
-        assert fixed == box
+        assert fixed == self.correct
 
-    def test_box_then_tree_both_correct(self, show_visual):
-        """A box followed by a tree — box is untouched, tree is fixed."""
-        content = (
-            "┌────────────────┐\n"
-            "│ Architecture   │\n"
-            "└────────────────┘\n"
-            "\n"
-            "Root\n"
-            "  ├── Child A\n"
-            "  └── Child B"
-        )
-        fixed, changes = fix_trees(content)
-        show_visual("Box + tree mixed content", content, fixed, changes)
-        # The box part should be preserved exactly
+
+class TestBoxExclusionMixed:
+    """A box followed by a tree — box is untouched, tree is fixed."""
+
+    correct = """\
+┌────────────────┐
+│ Architecture   │
+└────────────────┘
+
+Root
+  ├── Child A
+  └── Child B"""
+
+    def test_box_preserved_tree_fixed(self, show_visual: ShowVisual) -> None:
+        fixed, changes = fix_trees(self.correct)
+        show_visual("Box + tree mixed content", self.correct, fixed, changes)
         assert "┌────────────────┐" in fixed
         assert "│ Architecture   │" in fixed
         assert "└────────────────┘" in fixed
 
-    def test_indented_box_not_modified(self, show_visual):
-        """A box with leading indentation should still be excluded."""
-        box = (
-            "    ┌─────────┐\n"
-            "    │ Chunking │\n"
-            "    │ Enrichment│\n"
-            "    └─────────┘"
-        )
-        fixed, changes = fix_trees(box)
-        show_visual("Indented box through tree fixer", box, fixed, changes)
+
+class TestBoxExclusionIndented:
+    """A box with leading indentation must NOT be processed by the tree fixer."""
+
+    correct = """\
+    ┌─────────────┐
+    │ Chunking     │
+    │ Enrichment   │
+    └─────────────┘"""
+
+    def test_not_modified(self, show_visual: ShowVisual) -> None:
+        fixed, changes = fix_trees(self.correct)
+        show_visual("Indented box through tree fixer", self.correct, fixed, changes)
         assert len(changes) == 0
-        assert fixed == box
+        assert fixed == self.correct
 
 
 class TestTargetAwareness:
     """Tree fixer respects target parameter."""
 
-    def test_terminal_and_github_same_for_ascii_tree(self):
+    def test_terminal_and_github_same_for_ascii_tree(self) -> None:
         tree = "Root\n  ├── Child\n  └── Child"
         _, changes_t = fix_trees(tree, target="terminal")
         _, changes_g = fix_trees(tree, target="github")

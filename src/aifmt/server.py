@@ -32,10 +32,7 @@ def targets() -> str:
     lines = ["## Available rendering targets\n"]
     for p in profiles:
         desc = f" — {p.description}" if p.description else ""
-        lines.append(
-            f"- **{p.name}**{desc}  "
-            f"(emoji={p.emoji_width}, cjk={p.cjk_width})"
-        )
+        lines.append(f"- **{p.name}**{desc}  (emoji={p.emoji_width}, cjk={p.cjk_width})")
     return "\n".join(lines)
 
 
@@ -218,7 +215,7 @@ def generate(
         return f"Unknown format: {format}. Use 'mermaid', 'plantuml-ascii', or 'plantuml-unicode'."
 
 
-def main():
+def main() -> None:
     """Run the aifmt MCP server."""
     mcp.run()
 

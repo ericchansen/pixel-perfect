@@ -10,8 +10,12 @@ from __future__ import annotations
 
 import math
 import re
+from typing import TYPE_CHECKING
 
 from aifmt.lib.visual_width import visual_pad, visual_width_precise
+
+if TYPE_CHECKING:
+    from aifmt.lib.visual_width import RenderProfile
 
 # Matches a valid separator cell: optional colon, one-or-more dashes, optional colon
 _SEP_CELL_RE = re.compile(r"^\s*:?-+:?\s*$")
@@ -30,11 +34,7 @@ def fix_tables(text: str, *, target: str = "terminal") -> tuple[str, list[str]]:
 
     while i < len(lines):
         # A table starts with a header row (contains |) followed by a separator row.
-        if (
-            i + 1 < len(lines)
-            and "|" in lines[i]
-            and _is_separator_row(lines[i + 1])
-        ):
+        if i + 1 < len(lines) and "|" in lines[i] and _is_separator_row(lines[i + 1]):
             header_line = lines[i]
             sep_line = lines[i + 1]
             body_lines: list[str] = []
@@ -52,7 +52,10 @@ def fix_tables(text: str, *, target: str = "terminal") -> tuple[str, list[str]]:
                 i += 1
 
             fixed, table_changes = _fix_table(
-                header_line, sep_line, body_lines, target=target,
+                header_line,
+                sep_line,
+                body_lines,
+                target=target,
             )
             result_lines.extend(fixed)
             changes.extend(table_changes)
@@ -116,7 +119,7 @@ def _fix_table(
     all_counts.extend(len(row) for row in body_cell_rows)
     num_cols = max(all_counts) if all_counts else 0
     if num_cols == 0:
-        return [header, separator] + body_lines, changes
+        return [header, separator, *body_lines], changes
 
     # Pad short rows to num_cols
     def _pad(cells: list[str], n: int) -> list[str]:
@@ -181,18 +184,16 @@ def _fix_table(
     new_sep = _build_separator_row()
     new_body = [_build_content_row(row) for row in body_cell_rows]
 
-    fixed = [new_header, new_sep] + new_body
-    original = [header, separator] + body_lines
+    fixed = [new_header, new_sep, *new_body]
+    original = [header, separator, *body_lines]
 
     if fixed != original:
-        changes.append(
-            f"Fixed table alignment ({num_cols} columns, {len(body_lines)} data rows)"
-        )
+        changes.append(f"Fixed table alignment ({num_cols} columns, {len(body_lines)} data rows)")
 
     # Warn about cells with fractional widths (odd emoji count on fractional targets)
     profile = _get_profile(target)
     if profile.emoji_width != int(profile.emoji_width):
-        all_rows = [header_cells] + body_cell_rows
+        all_rows = [header_cells, *body_cell_rows]
         warned_cols: set[int] = set()
         for row in all_rows:
             for col, cell in enumerate(row):
@@ -202,7 +203,7 @@ def _fix_table(
                 if pw != int(pw):
                     emoji_n = _count_emoji_in_text(cell)
                     changes.append(
-                        f"⚠ Column {col + 1}: cell \"{cell}\" has {emoji_n} emoji "
+                        f'⚠ Column {col + 1}: cell "{cell}" has {emoji_n} emoji '
                         f"(odd count → fractional width {pw}). Pipe alignment will be "
                         f"off by {abs(pw - round(pw)):.1f} cols on {target}. "
                         f"Use an even number of emoji per cell, or avoid emoji for "
@@ -216,10 +217,12 @@ def _fix_table(
 def _count_emoji_in_text(text: str) -> int:
     """Count emoji characters in text."""
     from aifmt.lib.visual_width import _is_emoji_presentation
+
     return sum(1 for ch in text if _is_emoji_presentation(ch))
 
 
-def _get_profile(target: str):
+def _get_profile(target: str) -> RenderProfile:
     """Get the rendering profile for the given target."""
     from aifmt.lib.visual_width import get_profile
+
     return get_profile(target)

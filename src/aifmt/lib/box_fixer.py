@@ -95,7 +95,10 @@ def _is_border_line(stripped: str) -> bool:
 
 
 def _pair_borders(
-    border_indices: list[int], lines: list[str], *, target: str = "terminal",
+    border_indices: list[int],
+    lines: list[str],
+    *,
+    target: str = "terminal",
 ) -> list[dict]:
     """Pair top and bottom borders into box regions.
 
@@ -133,11 +136,13 @@ def _pair_borders(
             if abs(top_width - bottom_width) <= 3:
                 # Check that lines between are content lines (have vertical borders)
                 if _has_content_lines(lines, top_idx, bottom_idx, indent):
-                    regions.append({
-                        "top": top_idx,
-                        "bottom": bottom_idx,
-                        "indent": indent,
-                    })
+                    regions.append(
+                        {
+                            "top": top_idx,
+                            "bottom": bottom_idx,
+                            "indent": indent,
+                        }
+                    )
                     used.add(top_idx)
                     used.add(bottom_idx)
                     break
@@ -207,7 +212,11 @@ def _fix_box_region(lines: list[str], region: dict, *, target: str = "terminal")
 
         # It's a content line — fix the right border
         fixed = _fix_content_line(
-            stripped, target_width, left_v, right_v, target=target,
+            stripped,
+            target_width,
+            left_v,
+            right_v,
+            target=target,
         )
         if fixed != stripped:
             lines[idx] = " " * indent + fixed
@@ -234,6 +243,7 @@ def _fix_box_region(lines: list[str], region: dict, *, target: str = "terminal")
 def _count_emoji(text: str) -> int:
     """Count emoji characters in text."""
     from aifmt.lib.visual_width import _is_emoji_presentation
+
     return sum(1 for ch in text if _is_emoji_presentation(ch))
 
 
